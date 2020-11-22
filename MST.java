@@ -1087,7 +1087,6 @@ class MSTworld {
     //
 
     public void KruskalSolve() throws Coordinator.KilledException {
-        int numThread = 10;
 
         // number of points == numbers of subtrees at the start
         int numTrees = n;
@@ -1107,21 +1106,26 @@ class MSTworld {
 
         Arrays.fill(edge_color_main, true);
         Arrays.fill(edge_color_helper, true);
+
         class helperThread extends Thread {
 
             private int from, to;
             ReentrantLock lock = new ReentrantLock();
-
-            public helperThread(int from, int to) {
+            Semaphore sem;
+            public helperThread(Semaphore sem, int from, int to) {
                 this.from = from;
                 this.to = to;
+                this.sem = sem;
             }
 
             @Override
             public void run() {
-                lock.lock();
-                runFromTo(from, to);
-                lock.unlock();
+                if (sem.tryAcquire()) {
+                    lock.lock();
+                    runFromTo(from, to);
+                    lock.unlock();
+                }
+                sem.release();
             }
 
             public void runFromTo(int from, int to) {
@@ -1139,17 +1143,17 @@ class MSTworld {
                 }
             }
         }
-
-        ExecutorService ex = Executors.newFixedThreadPool(numThread);
-        int division = n / (numThread + 1);
+        Semaphore sem = new Semaphore (numThreads);
+        ExecutorService ex = Executors.newFixedThreadPool(numThreads);
+        int division = n / (numThreads + 1);
         int start = division;
         
-        for(int i = 0; i <numThread; i++){
-            if(i != numThread-1){
-                ex.execute(new helperThread(start, start + division));
+        for(int i = 0; i <numThreads; i++){
+            if(i != numThreads-1){
+                ex.execute(new helperThread(sem, start, start + division));
                 start += division;
             }else{
-                ex.execute(new helperThread(start, n-1));
+                ex.execute(new helperThread(sem, start, n-1));
             }
         }
         
