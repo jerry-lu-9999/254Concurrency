@@ -692,8 +692,7 @@ class MSTworld {
         private final int high1;
         private final int parity;
 
-        public TriangulateThread(Semaphore sem, int l, int r, int low0, int high0, int low1, int high1,
-                int parity) {
+        public TriangulateThread(Semaphore sem, int l, int r, int low0, int high0, int low1, int high1, int parity) {
             this.sem = sem;
             this.l = l;
             this.r = r;
@@ -708,15 +707,15 @@ class MSTworld {
         public void run() {
             try {
                 if (sem.tryAcquire(1)) {
-                    // lock.lock();
+                    lock.lock();
                     try {
                         triangulate(l, r, low0, high0, low1, high1, parity);
                     } finally {
-                        // lock.unlock();
+                        lock.unlock();
                         sem.release();
                     }
                 }
-            } catch (Coordinator.KilledException | InterruptedException e) {
+            } catch (Coordinator.KilledException e) {
                 e.printStackTrace();
             }
         }
@@ -733,7 +732,7 @@ class MSTworld {
     // edges that are likely to be broken when stitching.
     //
     private void triangulate(int l, int r, int low0, int high0, int low1, int high1, int parity)
-            throws Coordinator.KilledException, InterruptedException {
+            throws Coordinator.KilledException {
 
         final int dim0;
         final int dim1;
@@ -866,15 +865,21 @@ class MSTworld {
             triangulate(l, i, low1, high1, low0, mid, 1 - parity);
         } else {
             // divide and conquer
-            // triangulate(j, r, low1, high1, mid, high0, 1-parity);
-            // triangulate(l, i, low1, high1, low0, mid, 1-parity);
             Semaphore sem = new Semaphore(numThreads);
-            TriangulateThread tLeft = new TriangulateThread(sem,j, r, low1, high1, mid, high0, 1 - parity);
-            TriangulateThread tRight = new TriangulateThread(sem, l, i, low1, high1, low0, mid, 1 - parity);
-            tLeft.start();
-            tRight.start();
-            tLeft.join();
-            tRight.join();
+            if (Thread.activeCount() < numThreads) {
+                TriangulateThread tRight = new TriangulateThread(sem, l, i, low1, high1, low0, mid, 1 - parity);
+                tRight.start();
+                triangulate(j, r, low1, high1, mid, high0, 1 - parity);
+                try {
+                    tRight.join();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            } else {
+                triangulate(l, i, low1, high1, low0, mid, 1 - parity);
+                triangulate(j, r, low1, high1, mid, high0, 1 - parity);
+            }
+
             // prepare to stitch meshes together up the middle:
             class side {
                 public point p; // working point
@@ -947,20 +952,21 @@ class MSTworld {
             rotateClass rotate = new rotateClass();
             rotate.run(right, dir0);
             rotate.run(left, dir1);
-            // List<Runnable> listRot = new ArrayList<>();
-            // listRot.add(new rotateClass(right, dir0));
-            // listRot.add(new rotateClass(left, dir1));
-            // ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-            // for (Runnable res : listRot) {
-            //     executor.execute(res);
-            // }
-            // executor.shutdown();
-            // Thread right_rot = new Thread(new rotateClass(right, dir0));
+            // rotateClass rotate = new rotateClass(right, dir0);
             // Thread left_rot = new Thread(new rotateClass(left, dir1));
-            // right_rot.start();
-            // left_rot.start();
-            // right_rot.join();
-            // left_rot.join();
+            // if (Thread.activeCount() < numThreads) {
+            //     rotate.run(right, dir0);
+            //     left_rot.start();
+            //     try {
+            //         left_rot.join();
+            //     } catch (InterruptedException e) {
+            //         e.printStackTrace();
+            //     }
+            // } else {
+            //     rotate.run(right, dir0);
+            //     left_rot.run();
+            // }
+            
             // Find endpoint of bottom edge of seam, by moving around border
             // as far as possible without going around a corner. This, too,
             // is basically a nested subroutine.
@@ -1096,11 +1102,7 @@ class MSTworld {
     // This is a wrapper for the root call to triangulate().
     //
     public void DwyerSolve() throws Coordinator.KilledException {
-        try {
-            triangulate(0, n - 1, minx, maxx, miny, maxy, 0);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        triangulate(0, n - 1, minx, maxx, miny, maxy, 0);
     }
 }
 
