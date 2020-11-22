@@ -53,7 +53,10 @@ import java.io.*;
 import javax.swing.*;
 import java.util.*;
 import java.lang.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MST {
     private static int n = 50;              // default number of points
@@ -272,6 +275,7 @@ class MSTworld {
     // Not needed at present, but will need to be passed to any
     // newly created workers.
     private final int n;  // number of points
+
     private final point points[];
     // main array of points, used for partitioning and rendering
     private final HashSet<point> pointHash;
@@ -281,7 +285,7 @@ class MSTworld {
     // Used for rendering.  Ordering supports the KruskalSolve stage.
     private long sd = 0;
     private final Random prn;     // pseudo-random number generator
-
+    private int pos = 0;
     // Constructor
     //
     public MSTworld(int N, long SD, Coordinator C) {
@@ -941,23 +945,83 @@ class MSTworld {
         }
     }
 
+
     // This is the actual MST calculation.
     // It relies on the fact that set "edges" is sorted by length, so
     // enumeration occurs shortest-to-longest.
     //
     public void KruskalSolve()
             throws Coordinator.KilledException {
+        int numThread = 2;
+
+        //number of points == numbers of subtrees at the start
         int numTrees = n;
-        for (edge e : edges) {
+
+        //the main array that threads will be looping on
+        edge[] edge_array = edges.toArray(new edge[0]);
+
+        //for main thread to mark which edges are part
+        //of the MSF and which ones it found to form cycles.
+        boolean[] edge_color_main = new boolean[edge_array.length];
+
+        //used by the helper threads to mark
+        //the edges they discover to form a cycle.
+        //true means can be used, false means it would form cycle
+        //default value is false
+        boolean[] edge_color_helper = new boolean[edge_array.length];
+
+        class helperThread implements Runnable {
+
+            private int from, to;
+
+            public helperThread(int from, int to){
+                this.from = from;   this.to = to;
+            }
+
+            @Override
+            public void run() {
+                while(pos < from){
+                    for(int i = from; i <= to; i++){
+                        edge e = edge_array[i];
+                        if (edge_color_helper[i] == true){
+                            point p1 = e.points[0].subtree();
+                            point p2 = e.points[1].subtree();
+                            if (p1 == p2){
+                                edge_color_helper[i] = false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        ExecutorService ex = Executors.newFixedThreadPool(numThread);
+        int division = n / (numThread+1);
+        int start = division;
+        for(int i = 0; i <numThread; i++){
+            if(i != numThread-1){
+                ex.execute(new helperThread(start, start + division));
+                start += division;
+            }else{
+                ex.execute(new helperThread(start, n-1));
+            }
+        }
+
+        for (pos = 0; pos < edge_array.length; pos++) {
+            //the helper thread check
+            if(edge_color_helper[pos] == false){continue;}
+            edge e = edge_array[pos];
             point st1 = e.points[0].subtree();
             point st2 = e.points[1].subtree();
             if (st1 != st2) {
                 // This edge joins two previously separate subtrees.
                 st1.merge(st2);
                 e.addToMST();
+                edge_color_main[pos] = true;
                 if (--numTrees == 1) break;
             }
         }
+        ex.shutdownNow();
     }
 
     // This is a wrapper for the root call to triangulate().
