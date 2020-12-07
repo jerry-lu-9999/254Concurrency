@@ -308,6 +308,7 @@ class MSTworld {
     private final Random prn; // pseudo-random number generator
 
     private final int numThreads;
+    private int pos = 0;
 
     // Constructor
     //
@@ -907,8 +908,8 @@ class MSTworld {
                 // private final int dir;
 
                 // public rotateClass(side s, int dir) {
-                //     this.s = s;
-                //     this.dir = dir;
+                // this.s = s;
+                // this.dir = dir;
                 // }
 
                 void run(side s, int dir) {
@@ -938,35 +939,12 @@ class MSTworld {
                         }
                     }
                 }
-
-                // @Override
-                // public void run() {
-                //     lock.lock();
-                //     try {
-                //         this.run(s, dir);
-                //     } finally {
-                //         lock.unlock();
-                //     }
-                // }
             }
             rotateClass rotate = new rotateClass();
             rotate.run(right, dir0);
             rotate.run(left, dir1);
-            // rotateClass rotate = new rotateClass(right, dir0);
-            // Thread left_rot = new Thread(new rotateClass(left, dir1));
-            // if (Thread.activeCount() < numThreads) {
-            //     rotate.run(right, dir0);
-            //     left_rot.start();
-            //     try {
-            //         left_rot.join();
-            //     } catch (InterruptedException e) {
-            //         e.printStackTrace();
-            //     }
-            // } else {
-            //     rotate.run(right, dir0);
-            //     left_rot.run();
-            // }
-            
+   
+
             // Find endpoint of bottom edge of seam, by moving around border
             // as far as possible without going around a corner. This, too,
             // is basically a nested subroutine.
@@ -1084,7 +1062,97 @@ class MSTworld {
     // It relies on the fact that set "edges" is sorted by length, so
     // enumeration occurs shortest-to-longest.
     //
+
     public void KruskalSolve() throws Coordinator.KilledException {
+
+        // number of points == numbers of subtrees at the start
+        int numTrees = n;
+
+        // the main array that threads will be looping on
+        edge[] edge_array = edges.toArray(new edge[0]);
+
+        // for main thread to mark which edges are part
+        // of the MSF and which ones it found to form cycles.
+        boolean[] edge_color_main = new boolean[edge_array.length];
+
+        // used by the helper threads to mark
+        // the edges they discover to form a cycle.
+        // true means can be used, false means it would form cycle
+        // default value is false
+        boolean[] edge_color_helper = new boolean[edge_array.length];
+
+        Arrays.fill(edge_color_main, true);
+        Arrays.fill(edge_color_helper, true);
+
+        class helperThread extends Thread {
+
+            private int from, to;
+            ReentrantLock lock = new ReentrantLock();
+            Semaphore sem;
+            public helperThread(Semaphore sem, int from, int to) {
+                this.from = from;
+                this.to = to;
+                this.sem = sem;
+            }
+
+            @Override
+            public void run() {
+                if (sem.tryAcquire()) {
+                    lock.lock();
+                    runFromTo(from, to);
+                    lock.unlock();
+                }
+                sem.release();
+            }
+
+            public void runFromTo(int from, int to) {
+                while (pos < from) {
+                    for (int i = from; i <= to; i++) {
+                        edge e = edge_array[i];
+                        if (edge_color_helper[i] == true) {
+                            point p1 = e.points[0].subtree();
+                            point p2 = e.points[1].subtree();
+                            if (p1 == p2) {
+                                edge_color_helper[i] = false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Semaphore sem = new Semaphore (numThreads);
+        ExecutorService ex = Executors.newFixedThreadPool(numThreads);
+        int division = n / (numThreads + 1);
+        int start = division;
+        
+        for(int i = 0; i <numThreads; i++){
+            if(i != numThreads-1){
+                ex.execute(new helperThread(sem, start, start + division));
+                start += division;
+            }else{
+                ex.execute(new helperThread(sem, start, n-1));
+            }
+        }
+        
+        for (pos = 0; pos < edge_array.length; pos++) {
+            //the helper thread check
+            if(edge_color_helper[pos] == false){continue;}
+            edge e = edge_array[pos];
+            point st1 = e.points[0].subtree();
+            point st2 = e.points[1].subtree();
+            if (st1 != st2) {
+                // This edge joins two previously separate subtrees.
+                st1.merge(st2);
+                e.addToMST();
+                edge_color_main[pos] = true;
+                if (--numTrees == 1) break;
+            }
+        }
+        ex.shutdownNow();
+    }
+    /*
+    public void KruskalSolve()
+        throws Coordinator.KilledException {
         int numTrees = n;
         for (edge e : edges) {
             point st1 = e.points[0].subtree();
@@ -1093,11 +1161,11 @@ class MSTworld {
                 // This edge joins two previously separate subtrees.
                 st1.merge(st2);
                 e.addToMST();
-                if (--numTrees == 1)
-                    break;
+                if (--numTrees == 1) break;
             }
         }
     }
+    */
 
     // This is a wrapper for the root call to triangulate().
     //

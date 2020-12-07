@@ -1,0 +1,19 @@
+Test Results
+Thread Count 1
+200000 points, seed 0
+elapsed time: 2.478 + 0.179 = 2.657 seconds
+Thread Count 2
+200000 points, seed 0
+elapsed time: 1.714 + 0.188 = 1.902 seconds
+Thread Count 3
+200000 points, seed 0
+elapsed time: 1.289 + 0.167 = 1.456 seconds
+Thread Count 4
+200000 points, seed 0
+elapsed time: 1.115 + 0.186 = 1.301 seconds
+Thread Count 6
+200000 points, seed 0
+elapsed time: 1.115 + 0.183 = 1.298 seconds
+Thread Count 8
+200000 points, seed 0
+elapsed time: 1.056 + 0.406 = 1.462 seconds

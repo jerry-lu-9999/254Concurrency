@@ -1,0 +1,12 @@
+#!/bin/bash
+echo Test Results > results
+for i in 1 2 3 4 6 8 12 16 24 32 48 64; do
+    for u in $(users); do
+        if [ "$u" != "$(whoami)" ]; then
+            echo Someone else is logged in!
+            exit 1
+        fi
+    done 
+    echo Thread Count $i >> results
+    java MST -n 200000 -t $i >> results
+done
