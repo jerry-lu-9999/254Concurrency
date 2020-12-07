@@ -939,34 +939,11 @@ class MSTworld {
                         }
                     }
                 }
-
-                // @Override
-                // public void run() {
-                // lock.lock();
-                // try {
-                // this.run(s, dir);
-                // } finally {
-                // lock.unlock();
-                // }
-                // }
             }
             rotateClass rotate = new rotateClass();
             rotate.run(right, dir0);
             rotate.run(left, dir1);
-            // rotateClass rotate = new rotateClass(right, dir0);
-            // Thread left_rot = new Thread(new rotateClass(left, dir1));
-            // if (Thread.activeCount() < numThreads) {
-            // rotate.run(right, dir0);
-            // left_rot.start();
-            // try {
-            // left_rot.join();
-            // } catch (InterruptedException e) {
-            // e.printStackTrace();
-            // }
-            // } else {
-            // rotate.run(right, dir0);
-            // left_rot.run();
-            // }
+   
 
             // Find endpoint of bottom edge of seam, by moving around border
             // as far as possible without going around a corner. This, too,
